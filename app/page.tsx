@@ -5,16 +5,16 @@ import SeatMap, { SeatData } from './SeatMap';
 import { supabase } from './supabaseClient';
 import { X, ShieldAlert, Sparkles, AlertCircle, Sun, Moon, BookOpen, Users, Rocket } from 'lucide-react';
 
+export interface PioneerData {
+  id: number;
+  claimerName: string;
+  identifier?: string;
+  bidAmount: number;
+  cycleNumber: number;
+}
+
 export default function Home() {
   const STATUS_MAX_LENGTH = 25;
-  const CYCLE_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
-  // Anchor point for cycle timing. There's no backend job running the
-  // capture-and-reset yet, so this only drives the visual countdown for now —
-  // wiring it to an actual scheduled reset is a separate, later step.
-  const CYCLE_ANCHOR = new Date('2026-01-01T00:00:00Z').getTime();
-  // Placeholder until the Pioneer Club is actually populated by a scheduled
-  // job. Wire this up to a real count once that exists.
-  const PIONEER_COUNT = 0;
   const PIONEER_TARGET = 100;
 
   const [isDark, setIsDark] = useState(false);
@@ -22,6 +22,7 @@ export default function Home() {
   const [selectedSeat, setSelectedSeat] = useState<SeatData | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [onlineCount, setOnlineCount] = useState(1);
+  const [totalVisits, setTotalVisits] = useState<number | null>(null);
 
   const [nameInput, setNameInput] = useState('');
   const [bidInput, setBidInput] = useState('');
@@ -30,13 +31,20 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bidTouched, setBidTouched] = useState(false);
-  const [cycleTimeLeft, setCycleTimeLeft] = useState(0);
+
+  // Real cycle boundary read from the database (set by the backend job),
+  // not a hardcoded date — this is what makes the countdown actually
+  // trustworthy instead of just decorative.
+  const [lastCycleAt, setLastCycleAt] = useState<number | null>(null);
+  const [cycleTimeLeft, setCycleTimeLeft] = useState<number | null>(null);
+  const [pioneers, setPioneers] = useState<PioneerData[]>([]);
 
   const fetchSeats = async () => {
     const { data, error } = await supabase
       .from('seats')
       .select('*')
-      .order('bid_amount', { ascending: false });
+      .order('bid_amount', { ascending: false })
+      .order('id', { ascending: true });
 
     if (error) {
       console.error('Error fetching seats:', error);
@@ -58,13 +66,91 @@ export default function Home() {
     }
   };
 
+  const fetchCycleState = async () => {
+    const { data, error } = await supabase
+      .from('cycle_state')
+      .select('last_cycle_at')
+      .single();
+
+    if (error) {
+      console.error('Error fetching cycle state:', error);
+      return;
+    }
+
+    if (data) {
+      setLastCycleAt(new Date(data.last_cycle_at).getTime());
+    }
+  };
+
+  const fetchPioneers = async () => {
+    const { data, error } = await supabase
+      .from('pioneers')
+      .select('*')
+      .order('captured_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching pioneers:', error);
+      return;
+    }
+
+    if (data) {
+      setPioneers(
+        data.map((p: any) => ({
+          id: p.id,
+          claimerName: p.claimer_name,
+          identifier: p.identifier || undefined,
+          bidAmount: Number(p.bid_amount),
+          cycleNumber: p.cycle_number,
+        }))
+      );
+    }
+  };
+
   useEffect(() => {
     fetchSeats();
+    fetchCycleState();
+    fetchPioneers();
+
+    // Counts this page load, then keeps totalVisits in sync with everyone
+    // else's page loads too, live.
+    supabase.rpc('increment_visit_count').then(({ data, error }) => {
+      if (error) {
+        console.error('Error incrementing visit count:', error);
+        return;
+      }
+      if (typeof data === 'number') setTotalVisits(data);
+    });
+
+    const visitsChannel = supabase
+      .channel('public:site_stats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_stats' }, (payload: any) => {
+        const newTotal = payload?.new?.total_visits;
+        if (typeof newTotal === 'number') setTotalVisits(newTotal);
+      })
+      .subscribe();
 
     const channel = supabase
       .channel('public:seats')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'seats' }, () => {
         fetchSeats();
+      })
+      .subscribe();
+
+    // Picks up the moment the backend job resets the cycle boundary, so
+    // everyone's countdown snaps to the new 14-day window automatically.
+    const cycleChannel = supabase
+      .channel('public:cycle_state')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cycle_state' }, () => {
+        fetchCycleState();
+      })
+      .subscribe();
+
+    // Picks up new inductions live, so the Pioneer Club strip fills in
+    // without anyone needing to refresh the page.
+    const pioneersChannel = supabase
+      .channel('public:pioneers')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pioneers' }, () => {
+        fetchPioneers();
       })
       .subscribe();
 
@@ -82,29 +168,32 @@ export default function Home() {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(cycleChannel);
+      supabase.removeChannel(pioneersChannel);
+      supabase.removeChannel(visitsChannel);
       supabase.removeChannel(presenceChannel);
     };
   }, []);
 
-  // Ticks once a second toward the end of the current 14-day cycle. This is
-  // purely visual for now — the actual top-5 capture and board reset needs a
-  // scheduled backend job to run even when nobody has the page open; that's
-  // a separate piece of work still to be wired up.
+  // Ticks once a second toward the end of the current 14-day cycle, using the
+  // real cycle-start time from the database. Once that time is reached, the
+  // backend job (checked hourly) performs the actual capture + reset — this
+  // effect just displays the honest countdown to it.
   useEffect(() => {
+    if (lastCycleAt === null) return;
+    const cycleEnd = lastCycleAt + 14 * 24 * 60 * 60 * 1000;
     const tick = () => {
-      const elapsed = (Date.now() - CYCLE_ANCHOR) % CYCLE_LENGTH_MS;
-      setCycleTimeLeft(CYCLE_LENGTH_MS - elapsed);
+      setCycleTimeLeft(Math.max(0, cycleEnd - Date.now()));
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [lastCycleAt]);
 
-  const cycleDays = Math.floor(cycleTimeLeft / (24 * 60 * 60 * 1000));
-  const cycleHours = Math.floor((cycleTimeLeft % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  const cycleMinutes = Math.floor((cycleTimeLeft % (60 * 60 * 1000)) / (60 * 1000));
-  const cycleSeconds = Math.floor((cycleTimeLeft % (60 * 1000)) / 1000);
+  const cycleDays = cycleTimeLeft !== null ? Math.floor(cycleTimeLeft / (24 * 60 * 60 * 1000)) : 0;
+  const cycleHours = cycleTimeLeft !== null ? Math.floor((cycleTimeLeft % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)) : 0;
+  const cycleMinutes = cycleTimeLeft !== null ? Math.floor((cycleTimeLeft % (60 * 60 * 1000)) / (60 * 1000)) : 0;
+  const cycleSeconds = cycleTimeLeft !== null ? Math.floor((cycleTimeLeft % (60 * 1000)) / 1000) : 0;
   const pad = (n: number) => String(n).padStart(2, '0');
 
   const sortedSeats = [...seats].sort((a, b) => b.bidAmount - a.bidAmount);
@@ -235,18 +324,35 @@ export default function Home() {
 
       // Work out which single row this submission will write into.
       // - Upgrade: the user's own existing row (their seat just gets a higher total).
-      // - New claimer taking an occupied seat: any free row (never the occupant's row).
+      // - New claimer taking an occupied seat: the lowest-numbered free row
+      //   (never the occupant's row) — picked deterministically instead of
+      //   whatever order the database happens to return.
+      // - Board is completely full: no free row exists to redirect into, so
+      //   the new higher bid knocks out whoever currently holds the LOWEST
+      //   amount on the whole board — that's the seat that would rank last
+      //   anyway once this bid is counted.
       // - Otherwise: the seat that was clicked (it's genuinely unclaimed, or it's theirs).
       let writeTargetDbId: number;
       if (isUpgrade) {
         writeTargetDbId = existingUserSeat!.dbId;
       } else if (!isSameSeat && selectedSeat.bidAmount > 0) {
-        const emptyRow = freshSeats.find((s: any) => !s.claimer_name);
-        if (!emptyRow) {
-          setErrorMessage('No seats are currently available.');
-          return;
+        const emptyRow = freshSeats
+          .filter((s: any) => !s.claimer_name)
+          .sort((a: any, b: any) => a.id - b.id)[0];
+
+        if (emptyRow) {
+          writeTargetDbId = emptyRow.id;
+        } else {
+          const lowestRow = freshSeats
+            .filter((s: any) => s.claimer_name)
+            .sort((a: any, b: any) => Number(a.bid_amount) - Number(b.bid_amount) || a.id - b.id)[0];
+
+          if (!lowestRow) {
+            setErrorMessage('No seats are currently available.');
+            return;
+          }
+          writeTargetDbId = lowestRow.id;
         }
-        writeTargetDbId = emptyRow.id;
       } else {
         writeTargetDbId = (selectedSeat as any).dbId;
       }
@@ -298,40 +404,47 @@ export default function Home() {
     <main className={`min-h-screen transition-colors duration-300 flex flex-col justify-between ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-[#FDFBF7] text-[#9333EA]'}`}>
       <div>
         {/* Top Navigation Bar */}
-        <div className={`w-full border-b px-6 py-4 flex items-center justify-between ${isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-purple-500/15 bg-white/70'}`}>
-          <div className="flex items-center gap-2.5 font-mono font-bold tracking-wider text-[#9333EA]">
+        <div className={`w-full border-b px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between ${isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-purple-500/15 bg-white/70'}`}>
+          <div className="flex items-center gap-2.5 font-mono font-bold tracking-wider text-[#A300A3]">
             <img src="/logo.jpg" alt="Logo" className="w-7 h-7 rounded-full object-cover border border-orange-500/50" />
             <span>MARSFLIGHT</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono border ${isDark ? 'bg-zinc-900 border-zinc-800 text-emerald-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 font-bold'}`}>
+          <div className="flex items-center gap-1 sm:gap-3">
+            {totalVisits !== null && (
+              <div className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-300' : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] font-bold'}`}>
+                <Users className="w-3 h-3" />
+                <span>{totalVisits.toLocaleString()}<span className="hidden sm:inline"> Total Visitors</span></span>
+              </div>
+            )}
+
+            <div className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border ${isDark ? 'bg-zinc-900 border-zinc-800 text-emerald-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 font-bold'}`}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{onlineCount}{onlineCount === 1 ? '' : 's'} Online</span>
+              <span>{onlineCount}<span className="hidden sm:inline">{onlineCount === 1 ? '' : 's'} Online</span></span>
             </div>
 
             <button
               onClick={() => setIsRulesOpen(true)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono border transition-all ${
+              className={`flex items-center gap-1.5 px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-mono border transition-all ${
                 isDark
                   ? 'bg-zinc-800 border-zinc-700 text-amber-400 hover:bg-zinc-700'
                   : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] hover:bg-purple-500/20'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>Rules</span>
+              <span className="hidden sm:inline">Rules</span>
             </button>
 
             <button
               onClick={() => setIsDark(!isDark)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono border transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-mono border transition-all ${
                 isDark
                   ? 'bg-zinc-800 border-zinc-700 text-amber-400 hover:bg-zinc-700'
                   : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] hover:bg-purple-500/20'
               }`}
             >
               {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-              <span>{isDark ? 'Light' : 'Dark'}</span>
+              <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
             </button>
           </div>
         </div>
@@ -344,7 +457,7 @@ export default function Home() {
                   logo), sized up; no logo image here anymore. */}
               <div className="flex items-center justify-center gap-2 sm:gap-3">
                 <Rocket className="w-9 h-9 sm:w-12 sm:h-12 text-orange-500 animate-bounce shrink-0" />
-                <h1 className={`text-xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter leading-tight ${isDark ? 'text-purple-400' : 'text-[#FFA500]'}`}>
+                <h1 className={`text-xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter leading-tight ${isDark ? 'text-purple-400' : 'text-[#A300A3]'}`}>
                   Board Before Elon Does
                 </h1>
               </div>
@@ -352,8 +465,7 @@ export default function Home() {
               {/* Countdown to the current cycle's end — the centerpiece of
                   the hero, sized a touch smaller than before. */}
               <div>
-                <p className={`text-[10px] sm:text-xs uppercase tracking-widest font-mono mb-3 ${isDark ? 'text-zinc-500' : 'text-[#00CF00]/50'}`}>
-                  Next Pioneer Club induction in
+                <p className={`text-[10px] sm:text-xs uppercase tracking-widest font-mono mb-3 ${isDark ? 'text-zinc-500' : 'text-[#800080]/50'}`}>
                 </p>
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 lg:gap-3">
                   {[
@@ -378,10 +490,8 @@ export default function Home() {
               </div>
 
               {/* Clear, simple explanation of the idea + what the countdown means */}
-              <p className={`text-[10px] sm:text-[11px] lg:text-sm max-w-md mx-auto leading-relaxed ${isDark ? 'text-zinc-400' : 'text-[#9333EA]/70'}`}>
-                Marsflight has 100 seats. Claim any open seat, outbid someone else's, or upgrade to a better one —
-                prices only ever go up. Every 14 days, whoever holds the top 5 seats gets permanently locked into
-                the Pioneer Club, then every seat resets to open so a new round can begin.
+              <p className={`text-[10px] sm:text-[11px] lg:text-sm max-w-md mx-auto leading-relaxed ${isDark ? 'text-zinc-400' : 'text-[#BF40BF]/70'}`}>
+                Claim, outbid, and climb. Every 14 days, the top 5 join the Pioneer Club and the 100-seat board resets.
               </p>
             </div>
           </div>
@@ -389,18 +499,65 @@ export default function Home() {
 
         {/* Pioneer Club strip */}
         <div className={`border-b py-6 px-4 ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-purple-500/15 bg-white/50'}`}>
-          <div className="max-w-3xl mx-auto flex flex-col items-center gap-2 text-center">
+          <div className="max-w-3xl mx-auto flex flex-col items-center gap-3 text-center">
             <div className="flex items-center gap-2">
               <Users className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-orange-500'}`} />
               <span className={`text-xs sm:text-sm font-bold font-mono tracking-wide ${isDark ? 'text-zinc-100' : 'text-[#9333EA]'}`}>
                 Pioneer Club
               </span>
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-300' : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA]'}`}>
-                {PIONEER_COUNT} / {PIONEER_TARGET}
+                {pioneers.length} / {PIONEER_TARGET}
               </span>
             </div>
-            <p className={`text-[11px] sm:text-xs max-w-md ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/60'}`}>
 
+            {pioneers.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg">
+                {pioneers.map((p) => {
+                  const isHandle = p.identifier && (p.identifier.startsWith('@') || !p.identifier.includes('.'));
+                  const openLink = () => {
+                    if (!p.identifier) return;
+                    if (isHandle) {
+                      window.open(`https://twitter.com/${p.identifier.replace('@', '')}`, '_blank');
+                    } else {
+                      let url = p.identifier;
+                      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+                      window.open(url, '_blank');
+                    }
+                  };
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={openLink}
+                      title={`${p.claimerName}${p.identifier ? ' — ' + p.identifier : ''}`}
+                      className="w-9 h-9 rounded-full bg-white border-2 border-orange-400 flex items-center justify-center overflow-hidden shadow-sm cursor-pointer hover:scale-110 transition-transform"
+                    >
+                      {isHandle ? (
+                        <img
+                          src={`https://unavatar.io/twitter/${p.identifier?.replace('@', '')}`}
+                          alt={p.claimerName}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : p.identifier ? (
+                        <img
+                          src={`https://www.google.com/s2/favicons?domain=${p.identifier.replace(/https?:\/\//, '')}&sz=64`}
+                          alt="favicon"
+                          className="w-5 h-5 object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-purple-950">
+                          {p.claimerName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className={`text-[11px] sm:text-xs max-w-md ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/60'}`}>
             </p>
           </div>
         </div>
@@ -412,7 +569,7 @@ export default function Home() {
       </div>
 
       {/* Footer Disclaimer */}
-      <footer className={`w-full border-t py-6 px-4 text-center text-xs font-mono ${isDark ? 'border-zinc-800 bg-zinc-950 text-zinc-500' : 'border-purple-500/15 bg-[#FDFBF7] text-[#9333EA]/60'}`}>
+      <footer className={`w-full border-t py-6 px-4 text-center text-xs font-mono ${isDark ? 'border-zinc-800 bg-zinc-950 text-zinc-500' : 'border-purple-500/15 bg-[#FDFBF7] text-[#181818]/60'}`}>
         <p className="max-w-xl mx-auto">
           Marsflight is a virtual ranking experience and parody platform. No actual spacecraft boarding passes or physical flights to Mars are provided.
         </p>
@@ -517,7 +674,7 @@ export default function Home() {
                 <input
                   type="number"
                   step="1"
-                  min="3"
+                  min="1"
                   inputMode="numeric"
                   required
                   value={bidInput}
@@ -582,7 +739,7 @@ export default function Home() {
                 {isSubmitting ? 'Launching...' : 'Confirm & Launch Rank'}
               </button>
 
-              <p className={`text-[11px] text-center italic font-mono pt-1 ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/60'}`}>
+              <p className={`text-[11px] text-center italic font-mono pt-1 ${isDark ? 'text-zinc-500' : 'text-[#181818]/60'}`}>
                 * Virtual novelty ranking experience—not an actual ticket for space travel.
               </p>
             </form>
