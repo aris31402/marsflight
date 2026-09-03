@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import SeatMap, { SeatData } from './SeatMap';
 import { supabase } from './supabaseClient';
-import { X, ShieldAlert, Sparkles, AlertCircle, Sun, Moon, BookOpen, Users, Rocket } from 'lucide-react';
+import { X, ShieldAlert, Sparkles, AlertCircle, BookOpen, Users, Rocket } from 'lucide-react';
 
 export interface PioneerData {
   id: number;
@@ -17,7 +17,6 @@ export default function Home() {
   const STATUS_MAX_LENGTH = 25;
   const PIONEER_TARGET = 100;
 
-  const [isDark, setIsDark] = useState(false);
   const [seats, setSeats] = useState<SeatData[]>([]);
   const [selectedSeat, setSelectedSeat] = useState<SeatData | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
@@ -401,10 +400,10 @@ export default function Home() {
   };
 
   return (
-    <main className={`min-h-screen transition-colors duration-300 flex flex-col justify-between ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-[#FDFBF7] text-[#9333EA]'}`}>
+    <main className="min-h-screen transition-colors duration-300 flex flex-col justify-between bg-[#FDFBF7] text-[#9333EA]">
       <div>
         {/* Top Navigation Bar */}
-        <div className={`w-full border-b px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between ${isDark ? 'border-zinc-800 bg-zinc-900/50' : 'border-purple-500/15 bg-white/70'}`}>
+        <div className="w-full border-b px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-purple-500/15 bg-white/70">
           <div className="flex items-center gap-2.5 font-mono font-bold tracking-wider text-[#A300A3]">
             <img src="/logo.jpg" alt="Logo" className="w-7 h-7 rounded-full object-cover border border-orange-500/50" />
             <span>MARSFLIGHT</span>
@@ -412,61 +411,39 @@ export default function Home() {
 
           <div className="flex items-center gap-1 sm:gap-3">
             {totalVisits !== null && (
-              <div className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-300' : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] font-bold'}`}>
+              <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border bg-purple-500/10 border-purple-500/30 text-[#9333EA] font-bold">
                 <Users className="w-3 h-3" />
                 <span>{totalVisits.toLocaleString()}<span className="hidden sm:inline"> Total Visitors</span></span>
               </div>
             )}
 
-            <div className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border ${isDark ? 'bg-zinc-900 border-zinc-800 text-emerald-400' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 font-bold'}`}>
+            <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-mono border bg-emerald-500/10 border-emerald-500/30 text-emerald-600 font-bold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{onlineCount}<span className="hidden sm:inline">{onlineCount === 1 ? '' : 's'} Online</span></span>
             </div>
 
             <button
               onClick={() => setIsRulesOpen(true)}
-              className={`flex items-center gap-1.5 px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-mono border transition-all ${
-                isDark
-                  ? 'bg-zinc-800 border-zinc-700 text-amber-400 hover:bg-zinc-700'
-                  : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] hover:bg-purple-500/20'
-              }`}
+              className="flex items-center gap-1.5 px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-mono border transition-all bg-purple-500/10 border-purple-500/30 text-[#9333EA] hover:bg-purple-500/20"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Rules</span>
-            </button>
-
-            <button
-              onClick={() => setIsDark(!isDark)}
-              className={`flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-xs font-mono border transition-all ${
-                isDark
-                  ? 'bg-zinc-800 border-zinc-700 text-amber-400 hover:bg-zinc-700'
-                  : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA] hover:bg-purple-500/20'
-              }`}
-            >
-              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{isDark ? 'Light' : 'Dark'}</span>
             </button>
           </div>
         </div>
 
         {/* Hero Section */}
-        <div className={`relative overflow-hidden border-b py-12 sm:py-16 px-4 text-center ${isDark ? 'border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950' : 'border-purple-500/15 bg-gradient-to-b from-purple-50/60 to-[#FDFBF7]'}`}>
+        <div className="relative overflow-hidden border-b py-12 sm:py-16 px-4 text-center border-purple-500/15 bg-gradient-to-b from-purple-50/60 to-[#FDFBF7]">
           <div className="max-w-3xl mx-auto space-y-4 relative z-10">
             <div className="space-y-5">
-              {/* Headline — rocket sits to the left (in place of the old
-                  logo), sized up; no logo image here anymore. */}
               <div className="flex items-center justify-center gap-2 sm:gap-3">
                 <Rocket className="w-9 h-9 sm:w-12 sm:h-12 text-orange-500 animate-bounce shrink-0" />
-                <h1 className={`text-xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter leading-tight ${isDark ? 'text-purple-400' : 'text-[#A300A3]'}`}>
+                <h1 className="text-xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter leading-tight text-[#A300A3]">
                   Board Before Elon Does
                 </h1>
               </div>
 
-              {/* Countdown to the current cycle's end — the centerpiece of
-                  the hero, sized a touch smaller than before. */}
               <div>
-                <p className={`text-[10px] sm:text-xs uppercase tracking-widest font-mono mb-3 ${isDark ? 'text-zinc-500' : 'text-[#800080]/50'}`}>
-                </p>
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 lg:gap-3">
                   {[
                     { label: 'days', value: cycleDays },
@@ -476,12 +453,12 @@ export default function Home() {
                   ].map((unit) => (
                     <div
                       key={unit.label}
-                      className={`rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 lg:px-5 lg:py-3.5 min-w-[58px] sm:min-w-[70px] lg:min-w-[86px] border shadow-sm ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-purple-500/20'}`}
+                      className="rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 lg:px-5 lg:py-3.5 min-w-[58px] sm:min-w-[70px] lg:min-w-[86px] border shadow-sm bg-white border-purple-500/20"
                     >
                       <p className="text-lg sm:text-xl lg:text-3xl font-black font-mono leading-none text-orange-600">
                         {pad(unit.value)}
                       </p>
-                      <p className={`text-[9px] sm:text-[10px] lg:text-xs font-mono uppercase mt-1 tracking-wide ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/50'}`}>
+                      <p className="text-[9px] sm:text-[10px] lg:text-xs font-mono uppercase mt-1 tracking-wide text-[#9333EA]/50">
                         {unit.label}
                       </p>
                     </div>
@@ -489,8 +466,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Clear, simple explanation of the idea + what the countdown means */}
-              <p className={`text-[10px] sm:text-[11px] lg:text-sm max-w-md mx-auto leading-relaxed ${isDark ? 'text-zinc-400' : 'text-[#BF40BF]/70'}`}>
+              <p className="text-[10px] sm:text-[11px] lg:text-sm max-w-md mx-auto leading-relaxed text-[#BF40BF]/70">
                 Claim, outbid, and climb. Every 14 days, the top 5 join the Pioneer Club and the 100-seat board resets.
               </p>
             </div>
@@ -498,14 +474,14 @@ export default function Home() {
         </div>
 
         {/* Pioneer Club strip */}
-        <div className={`border-b py-6 px-4 ${isDark ? 'border-zinc-800 bg-zinc-950' : 'border-purple-500/15 bg-white/50'}`}>
+        <div className="border-b py-6 px-4 border-purple-500/15 bg-white/50">
           <div className="max-w-3xl mx-auto flex flex-col items-center gap-3 text-center">
             <div className="flex items-center gap-2">
-              <Users className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-orange-500'}`} />
-              <span className={`text-xs sm:text-sm font-bold font-mono tracking-wide ${isDark ? 'text-zinc-100' : 'text-[#9333EA]'}`}>
+              <Users className="w-4 h-4 text-orange-500" />
+              <span className="text-xs sm:text-sm font-bold font-mono tracking-wide text-[#9333EA]">
                 Pioneer Club
               </span>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-300' : 'bg-purple-500/10 border-purple-500/30 text-[#9333EA]'}`}>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-purple-500/10 border-purple-500/30 text-[#9333EA]">
                 {pioneers.length} / {PIONEER_TARGET}
               </span>
             </div>
@@ -556,20 +532,17 @@ export default function Home() {
                 })}
               </div>
             )}
-
-            <p className={`text-[11px] sm:text-xs max-w-md ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/60'}`}>
-            </p>
           </div>
         </div>
 
         {/* Seat Map Container */}
         <div className="py-12 px-4">
-          <SeatMap seats={sortedSeats} onSelectSeat={handleSeatClick} isDark={isDark} onRefresh={fetchSeats} />
+          <SeatMap seats={sortedSeats} onSelectSeat={handleSeatClick} isDark={false} onRefresh={fetchSeats} />
         </div>
       </div>
 
       {/* Footer Disclaimer */}
-      <footer className={`w-full border-t py-6 px-4 text-center text-xs font-mono ${isDark ? 'border-zinc-800 bg-zinc-950 text-zinc-500' : 'border-purple-500/15 bg-[#FDFBF7] text-[#181818]/60'}`}>
+      <footer className="w-full border-t py-6 px-4 text-center text-xs font-mono border-purple-500/15 bg-[#FDFBF7] text-[#181818]/60">
         <p className="max-w-xl mx-auto">
           Marsflight is a virtual ranking experience and parody platform. No actual spacecraft boarding passes or physical flights to Mars are provided.
         </p>
@@ -578,10 +551,10 @@ export default function Home() {
       {/* Rules Modal */}
       {isRulesOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className={`border rounded-3xl w-full max-w-lg p-6 sm:p-8 relative space-y-6 shadow-2xl ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-100' : 'bg-white border-purple-500/30 text-[#9333EA]'}`}>
+          <div className="border rounded-3xl w-full max-w-lg p-6 sm:p-8 relative space-y-6 shadow-2xl bg-white border-purple-500/30 text-[#9333EA]">
             <button
               onClick={() => setIsRulesOpen(false)}
-              className={`absolute top-5 right-5 p-1.5 rounded-full transition-colors ${isDark ? 'bg-zinc-800 text-zinc-400 hover:text-zinc-100' : 'bg-purple-500/10 text-[#9333EA] hover:bg-purple-500/20'}`}
+              className="absolute top-5 right-5 p-1.5 rounded-full transition-colors bg-purple-500/10 text-[#9333EA] hover:bg-purple-500/20"
             >
               <X className="w-4 h-4" />
             </button>
@@ -639,10 +612,10 @@ export default function Home() {
       {/* Claim Modal */}
       {selectedSeat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className={`border rounded-3xl w-full max-w-md p-6 sm:p-8 relative space-y-6 shadow-2xl ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-100' : 'bg-white border-purple-500/30 text-[#9333EA]'}`}>
+          <div className="border rounded-3xl w-full max-w-md p-6 sm:p-8 relative space-y-6 shadow-2xl bg-white border-purple-500/30 text-[#9333EA]">
             <button
               onClick={() => setSelectedSeat(null)}
-              className={`absolute top-5 right-5 p-1.5 rounded-full transition-colors ${isDark ? 'bg-zinc-800 text-zinc-400 hover:text-zinc-100' : 'bg-purple-500/10 text-[#9333EA] hover:bg-purple-500/20'}`}
+              className="absolute top-5 right-5 p-1.5 rounded-full transition-colors bg-purple-500/10 text-[#9333EA] hover:bg-purple-500/20"
             >
               <X className="w-4 h-4" />
             </button>
@@ -652,7 +625,7 @@ export default function Home() {
                 <Sparkles className="w-3 h-3" /> {selectedSeat.section} Section
               </div>
               <h2 className="text-2xl font-bold tracking-tight">Claim Seat #{selectedSeat.id}</h2>
-              <p className={`text-xs mt-0.5 ${isDark ? 'text-zinc-400' : 'text-[#9333EA]/80'}`}>
+              <p className="text-xs mt-0.5 text-[#9333EA]/80">
                 {matchedOwnSeat
                   ? `You already hold a seat at $${matchedOwnSeat.bidAmount}. Upgrading here only costs the difference — minimum extra amount: $${modalMinRequired}.`
                   : selectedSeat.bidAmount > 0
@@ -670,7 +643,7 @@ export default function Home() {
 
             <form onSubmit={handleBidSubmit} className="space-y-4">
               <div>
-                <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-400' : 'text-[#9333EA]/80'}`}>Seat Fare ($ USD)</label>
+                <label className="block text-xs font-medium mb-1.5 text-[#9333EA]/80">Seat Fare ($ USD)</label>
                 <input
                   type="number"
                   step="1"
@@ -682,24 +655,24 @@ export default function Home() {
                     setBidInput(e.target.value);
                     setBidTouched(true);
                   }}
-                  className={`w-full border rounded-xl px-4 py-2.5 font-mono text-lg focus:outline-none focus:border-orange-500 ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-100' : 'bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]'}`}
+                  className="w-full border rounded-xl px-4 py-2.5 font-mono text-lg focus:outline-none focus:border-orange-500 bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]"
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-400' : 'text-[#9333EA]/80'}`}>Your Name / Startup / Company <span className="text-orange-500">*</span></label>
+                <label className="block text-xs font-medium mb-1.5 text-[#9333EA]/80">Your Name / Startup / Company <span className="text-orange-500">*</span></label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Acme Corp"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
-                  className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-500 ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-100' : 'bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]'}`}
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-500 bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]"
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-400' : 'text-[#9333EA]/80'}`}>
+                <label className="block text-xs font-medium mb-1.5 text-[#9333EA]/80">
                   Your Website URL or @handle <span className="text-orange-500">*</span>
                 </label>
                 <input
@@ -708,7 +681,7 @@ export default function Home() {
                   placeholder="e.g. site.com or @username"
                   value={identifierInput}
                   onChange={(e) => setIdentifierInput(e.target.value)}
-                  className={`w-full border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-orange-500 ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-100' : 'bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]'}`}
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-orange-500 bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]"
                 />
               </div>
 
@@ -723,9 +696,9 @@ export default function Home() {
                     value={statusInput}
                     maxLength={STATUS_MAX_LENGTH}
                     onChange={(e) => setStatusInput(e.target.value.slice(0, STATUS_MAX_LENGTH))}
-                    className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-500 ${isDark ? 'bg-zinc-950 border-zinc-800 text-zinc-100' : 'bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]'}`}
+                    className="w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-orange-500 bg-[#FDFBF7] border-purple-500/30 text-[#9333EA]"
                   />
-                  <p className={`text-[11px] mt-1 text-right font-mono ${isDark ? 'text-zinc-500' : 'text-[#9333EA]/50'}`}>
+                  <p className="text-[11px] mt-1 text-right font-mono text-[#9333EA]/50">
                     {statusInput.length}/{STATUS_MAX_LENGTH}
                   </p>
                 </div>
@@ -739,7 +712,7 @@ export default function Home() {
                 {isSubmitting ? 'Launching...' : 'Confirm & Launch Rank'}
               </button>
 
-              <p className={`text-[11px] text-center italic font-mono pt-1 ${isDark ? 'text-zinc-500' : 'text-[#181818]/60'}`}>
+              <p className="text-[11px] text-center italic font-mono pt-1 text-[#181818]/60">
                 * Virtual novelty ranking experience—not an actual ticket for space travel.
               </p>
             </form>
