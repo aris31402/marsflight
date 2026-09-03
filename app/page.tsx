@@ -537,7 +537,7 @@ export default function Home() {
 
         {/* Seat Map Container */}
         <div className="py-12 px-4">
-          <SeatMap seats={sortedSeats} onSelectSeat={handleSeatClick} isDark={false} onRefresh={fetchSeats} />
+          <SeatMap seats={sortedSeats} onSelectSeat={handleSeatClick} onRefresh={fetchSeats} />
         </div>
       </div>
 
